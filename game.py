@@ -137,19 +137,19 @@ class Game(object):
 
     def start_play(self, player1, player2, start_player=0, is_shown=1):
         self.board.init_board(start_player)
-        p1, p2 = self.board.players
+        p1,p2=self.board.players
         player1.set_player_ind(p1)
         player2.set_player_ind(p2)
-        players = {p1: player1, p2: player2}
+        players={p1: player1, p2: player2}
         if is_shown:
             self.graphic(self.board, player1.player, player2.player)
         while True:
-            current_player = self.board.get_current_player()
-            player_in_turn = players[current_player]
-            move = player_in_turn.get_action(self.board)
+            current_player=self.board.get_current_player()
+            player_in_turn=players[current_player]
+            move=player_in_turn.get_action(self.board)
             self.board.do_move(move)
             if is_shown:
-                self.graphic(self.board, player1.player, player2.player)
+                self.graphic(self.board,player1.player,player2.player)
             end, winner = self.board.game_end()
             if end:
                 if is_shown:

@@ -6,7 +6,7 @@ from collections import defaultdict, deque
 from game import Board, Game
 from mcts_pure import MCTSPlayer as MCTS_Pure
 from mcts_alphaZero import MCTSPlayer
-from policy_value_net_pytorch import PolicyValueNet 
+
 import torch
 from torch.autograd import Variable
 import torch.optim as optim
@@ -46,7 +46,7 @@ class Net(nn.Module):
         x_val = torch.tanh(self.val_fc2(x_val))
 
         return x_act, x_val
-    
+#data argument    
 def get_equi_data(play_data):
     extend_data = []
     for state, mcts_porb, winner in play_data:
@@ -64,31 +64,32 @@ def get_equi_data(play_data):
 
 if __name__ == '__main__':
 
+    #define the para
     learn_rate=2e-3
     lr_multiplier=1.0 
     init_model=None
-    board=Board(width=6,height=6,n_in_row=4)
-    game=Game(board)
-    data_buffer=deque(maxlen=10000)
     best_win_ratio=0
     pure_mcts_playout_num=1000
 
+    #define the env
+    board=Board(width=6,height=6,n_in_row=4)
+    game=Game(board)
+    data_buffer=deque(maxlen=10000)
+
+    #define the net,opt,agent with net
     policy_value_net=Net(6,6).cuda()
     optimizer=optim.Adam(policy_value_net.parameters(),weight_decay=1e-4)
     if init_model!=None:
         policy_value_net.load_state_dict(torch.load(init_model, encoding='latin1'))
     mcts_player=MCTSPlayer(policy_value_net,c_puct=5,n_playout=400,is_selfplay=1)
 
+    #start train
     for i in range(1500):
         #collect data and adta argument,play until one wins
         _,play_data=game.start_self_play(mcts_player,temp=1)
         play_data=list(play_data)[:]
-        episode_len=len(play_data)
-        play_data=get_equi_data(play_data)
+        play_data=get_equi_data(play_data) #*8
         data_buffer.extend(play_data)
-
-        print("batch i:{}, episode_len:{}".format(i+1, episode_len))
-        
         if len(data_buffer)>512: 
             #update
             #-------------------------------------------------------------------------------------
@@ -103,12 +104,7 @@ if __name__ == '__main__':
             mcts_probs=Variable(torch.FloatTensor(np.array(mcts_probs_batch)).cuda())
             winner_batch=Variable(torch.FloatTensor(np.array(winner_batch)).cuda())    
             
-            #record the pre_net_output
-            log_act_probs,value=policy_value_net(state_batch)
-            act_probs=np.exp(log_act_probs.data.cpu().numpy())
-            old_probs,old_v=act_probs,value.data.cpu().numpy()
-
-
+            #Train(get loss)
             for j in range(5):
                 #caculate one batch loss to update net
                 optimizer.zero_grad()
@@ -124,27 +120,6 @@ if __name__ == '__main__':
                 optimizer.step()
                 total_loss=loss.item()                
                 
-                
-                #record the new_net_output
-                log_act_probs,value=policy_value_net(state_batch)
-                act_probs=np.exp(log_act_probs.data.cpu().numpy())
-                new_probs,new_v=act_probs,value.data.cpu().numpy()
-
-                kl=np.mean(np.sum(old_probs*(np.log(old_probs+1e-10)-np.log(new_probs+1e-10)),axis=1))
-                #we don't want net change very much,if the kl is bigger enough,we stop undate net
-                if kl>0.02*4:  break
-
-            #control the lr
-            if kl > 0.02 * 2 and lr_multiplier > 0.1:
-                lr_multiplier /= 1.5
-            elif kl < 0.02 / 2 and lr_multiplier < 10:
-                lr_multiplier *= 1.5
-            print(("kl:{:.5f},"
-                    "lr_multiplier:{:.3f},"
-                    "loss:{},"
-                    ).format(kl,
-                            lr_multiplier,
-                            total_loss))
             #-------------------------------------------------------------------------------------
         if (i+1) % 50 == 0:  #50
             #Evaluate
