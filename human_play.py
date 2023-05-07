@@ -6,9 +6,7 @@ from mcts_pure import MCTSPlayer as MCTS_Pure
 from mcts_alphaZero import MCTSPlayer
 import torch
 from train import Net
-from policy_value_net_pytorch import PolicyValueNet  
-
-
+  
 
 class Human(object):
     """
@@ -18,8 +16,6 @@ class Human(object):
     def __init__(self):
         self.player = None
 
-    def set_player_ind(self, p):
-        self.player = p
 
     def get_action(self, board):
         try:
@@ -53,7 +49,7 @@ if __name__ == '__main__':
     #best_policy = PolicyValueNet(width, height, model_file = model_file)
     policy_value_net = Net(6, 6).cuda()
     policy_value_net.load_state_dict(torch.load(model_file, encoding='latin1'))
-    mcts_player = MCTSPlayer(policy_value_net, c_puct=5, n_playout=400)
+    mcts_player = MCTSPlayer(policy_value_net, n_playout=400)
 
     # uncomment the following line to play with pure MCTS (it's much weaker even with a larger n_playout)
     # mcts_player = MCTS_Pure(c_puct=5, n_playout=1000)

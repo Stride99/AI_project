@@ -3,7 +3,7 @@
 from __future__ import print_function
 import numpy as np
 import torch
-
+from mcts_alphaZero import TreeNode
 class Board(object):
 
     def __init__(self, **kwargs):
@@ -138,8 +138,8 @@ class Game(object):
     def start_play(self, player1, player2, start_player=0, is_shown=1):
         self.board.init_board(start_player)
         p1,p2=self.board.players
-        player1.set_player_ind(p1)
-        player2.set_player_ind(p2)
+        player1.player=p1
+        player2.player=p2
         players={p1: player1, p2: player2}
         if is_shown:
             self.graphic(self.board, player1.player, player2.player)
@@ -166,7 +166,7 @@ class Game(object):
 
         while True:
             #sample
-            move,move_probs=player.get_action(self.board,temp=temp,return_prob=1)
+            move,move_probs=player.get_action(self.board,return_prob=1)
 
             #(s,act_p,player_now)
             states.append(self.board.current_state())
@@ -184,5 +184,5 @@ class Game(object):
                     winners_z[np.array(current_players) != winner] = -1.0
 
                 # start a new tree
-                player.reset_player()
+                player.mcts._root=TreeNode(None,1)
                 return winner, zip(states, mcts_probs, winners_z)

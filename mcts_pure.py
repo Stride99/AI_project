@@ -1,45 +1,7 @@
-# -*- coding: utf-8 -*-
 import numpy as np
 import copy
 from operator import itemgetter
-
-class TreeNode(object):
-    def __init__(self, parent, prior_p):
-        self._parent=parent
-        self._children={} 
-        self._n_visits=0
-        self._Q=0
-        self._u=0
-        self._P=prior_p
-
-    def expand(self, action_priors):
-        for action, prob in action_priors:
-            if action not in self._children:
-                self._children[action]=TreeNode(self, prob)
-
-    def select(self, c_puct):
-        return max(self._children.items(),key=lambda act_node: act_node[1].get_value(c_puct))
-
-    def update(self, leaf_value):
-        self._n_visits+=1
-        #Q=((n-1)*Q+value)/n
-        self._Q+=(leaf_value-self._Q)/self._n_visits
-
-    def update_recursive(self, leaf_value):
-        #back to root
-        if self._parent: self._parent.update_recursive(-leaf_value)
-        self.update(leaf_value)
-
-    def get_value(self, c_puct):
-        self._u=(c_puct*self._P*np.sqrt(self._parent._n_visits)/(1+self._n_visits))
-        return self._Q+self._u
-
-    def is_leaf(self):
-        return self._children=={}
-
-    def is_root(self):
-        return self._parent is None
-
+from mcts_alphaZero import TreeNode
 
 class MCTS(object):
     def __init__(self, c_puct=5, n_playout=10000):
@@ -52,7 +14,7 @@ class MCTS(object):
         node=self._root
         while(1):
             #walk from root to leave
-            if node.is_leaf():  break
+            if node._children=={}:  break
             #choice biggest value action
             action,node=node.select(self._c_puct)
             state.do_move(action)
@@ -95,12 +57,6 @@ class MCTS(object):
 class MCTSPlayer(object):
     def __init__(self,c_puct=5,n_playout=2000):
         self.mcts=MCTS(c_puct,n_playout)
-
-    def set_player_ind(self, p):
-        self.player=p
-
-    def reset_player(self):
-        self.mcts._root=TreeNode(None,1.0)
 
     def get_action(self,board):
         sensible_moves=board.availables

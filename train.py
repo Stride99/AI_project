@@ -4,7 +4,6 @@ import random
 import numpy as np
 from collections import defaultdict, deque
 from game import Board, Game
-from mcts_pure import MCTSPlayer as MCTS_Pure
 from mcts_alphaZero import MCTSPlayer
 
 import torch
@@ -70,7 +69,8 @@ if __name__ == '__main__':
     init_model=None
     best_win_ratio=0
     pure_mcts_playout_num=1000
-
+    best_loss=2100000000
+    losses=[]
     #define the env
     board=Board(width=6,height=6,n_in_row=4)
     game=Game(board)
@@ -81,10 +81,10 @@ if __name__ == '__main__':
     optimizer=optim.Adam(policy_value_net.parameters(),weight_decay=1e-4)
     if init_model!=None:
         policy_value_net.load_state_dict(torch.load(init_model, encoding='latin1'))
-    mcts_player=MCTSPlayer(policy_value_net,c_puct=5,n_playout=400,is_selfplay=1)
+    mcts_player=MCTSPlayer(policy_value_net,n_playout=400,is_selfplay=1)
 
     #start train
-    for i in range(1500):
+    for i in range(300):
         #collect data and adta argument,play until one wins
         _,play_data=game.start_self_play(mcts_player,temp=1)
         play_data=list(play_data)[:]
@@ -103,7 +103,7 @@ if __name__ == '__main__':
             state_batch=Variable(torch.FloatTensor(np.array(state_batch)).cuda())
             mcts_probs=Variable(torch.FloatTensor(np.array(mcts_probs_batch)).cuda())
             winner_batch=Variable(torch.FloatTensor(np.array(winner_batch)).cuda())    
-            
+            loss1=0
             #Train(get loss)
             for j in range(5):
                 #caculate one batch loss to update net
@@ -116,43 +116,23 @@ if __name__ == '__main__':
                 policy_loss=-torch.mean(torch.sum(mcts_probs*log_act_probs,1))
                 #loss = (z - v)^2 - pi^T * log(p) 
                 loss=value_loss+policy_loss
+                if loss < best_loss:
+                    best_loss=loss
+                    if pure_mcts_playout_num<5000:
+                        pure_mcts_playout_num+=10
+                    torch.save(policy_value_net.state_dict(),'./best_policy.model')
                 loss.backward()
                 optimizer.step()
-                total_loss=loss.item()                
-                
-            #-------------------------------------------------------------------------------------
-        if (i+1) % 50 == 0:  #50
-            #Evaluate
-            #-------------------------------------------------------------------------------------
-            #load the train model
-            current_mcts_player=MCTSPlayer(policy_value_net,c_puct=5,n_playout=400)
-            pure_mcts_player=MCTS_Pure(c_puct=5,n_playout=pure_mcts_playout_num)
-            win_cnt=defaultdict(int)
-            #simulate a game
-            for i in range(10):
-                #change the first player,adapt to all situation
-                winner=game.start_play(current_mcts_player,pure_mcts_player,start_player=i%2,is_shown=0)        
-                win_cnt[winner]+=1
+                total_loss=loss.item() 
+                loss1+=loss.detach().item()
+            losses.append(loss1/5) 
 
-            #win plus 1,tie plus 0.5
-            win_ratio=(win_cnt[1]+0.5*win_cnt[-1])/10
-            print("num_playouts:{}, win: {}, lose: {}, tie:{}".format(
-                    pure_mcts_playout_num,
-                    win_cnt[1], win_cnt[2], win_cnt[-1]))
-            #-------------------------------------------------------------------------------------
+    import matplotlib.pyplot as plt
+    plt.switch_backend('Agg') # 后端设置'Agg' 参考：https://cloud.tencent.com/developer/article/1559466
 
-            #save
-            #-------------------------------------------------------------------------------------
-            #policy_value_net.save_model('./current_policy.model')
-            torch.save(policy_value_net.state_dict(),'./current_policy.model')
-            if win_ratio>best_win_ratio:
-                print("New best policy!!!!!!!!")
-                best_win_ratio=win_ratio
-                #policy_value_net.save_model('./best_policy.model')
-                torch.save(policy_value_net.state_dict(),'./best_policy.model')
-
-                #although AI win all the game,Maybe because the opponent is not strong enough, so you have to strengthen the opponent first
-                if (best_win_ratio==1 and pure_mcts_playout_num<5000):
-                    pure_mcts_playout_num+=1000
-                    best_win_ratio=0
-            #-------------------------------------------------------------------------------------
+    plt.figure()                   # 设置图片信息 例如：plt.figure(num = 2,figsize=(640,480))
+    plt.plot(losses,'b',label = 'loss')        # epoch_losses 传入模型训练中的 loss[]列表,在训练过程中，先创建loss列表，将每一个epoch的loss 加进这个列表
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend()        #个性化图例（颜色、形状等）
+    plt.savefig("1_recon_loss.jpg")#保存图片 路径：/imgPath/
