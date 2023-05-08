@@ -68,7 +68,6 @@ if __name__ == '__main__':
     lr_multiplier=1.0 
     init_model=None
     best_win_ratio=0
-    pure_mcts_playout_num=1000
     best_loss=2100000000
     losses=[]
     #define the env
@@ -118,8 +117,6 @@ if __name__ == '__main__':
                 loss=value_loss+policy_loss
                 if loss < best_loss:
                     best_loss=loss
-                    if pure_mcts_playout_num<5000:
-                        pure_mcts_playout_num+=10
                     torch.save(policy_value_net.state_dict(),'./best_policy.model')
                 loss.backward()
                 optimizer.step()
